@@ -2,7 +2,7 @@ import requests
 import time
 import os
 import pandas as pd
-
+import json
 
 BASE_URL="https://api-prod.grip.events/1/container/7888/thing"
 
@@ -52,10 +52,65 @@ def appendProduct(file_path2, data):
 
     return True
 
-ids=[]
-with open("search_ids.txt") as file:
-    for line in file:
-        ids.append(line.strip())
+def extract_linkedin_url(rtm_string):
+    try:
+        rtm_data = json.loads(rtm_string)  # Parse the JSON string inside rtm
+        for key, value in rtm_data.items():
+            if value.get("label") == "Company URLs":  # Check if label is "Company URLs"
+                return value.get("sentence", "")  # Return the sentence (which contains the URL)
+    except json.JSONDecodeError:
+        print("Error decoding rtm JSON")
+    return ""
 
-for id in ids:
-    print(id)
+
+
+
+
+def scrape_ids(ids):
+    profiles = []
+    for id in ids:
+        print(f"Scraping profile {id}")
+        url = f"{BASE_URL}/{id}"
+        response = requests.get(url, headers=HEADERS)
+        # in response.json() we have the data
+        if response.status_code == 200:
+            try:
+                data = response.json()
+                if data.get("success"):
+                    attendee_data = data.get("data", {})
+                    name=attendee_data.get("name", " ")
+                    job_title=attendee_data.get("job_title", " ")
+                    company_name=attendee_data.get("company_name", " ")
+                    location=attendee_data.get("location", " ")
+                    summary=attendee_data.get("summary", " ")
+                    rtm=attendee_data.get("rtm", "{}")
+                    linkedin_url=extract_linkedin_url(rtm)
+                    profile = {
+                        "Attendee Id": id,
+                        "Attendee Name": name,
+                        "Attendee Job Title": job_title,
+                        "Attendee Company Name": company_name,
+                        "Attendee Summary": summary,
+                        "Attendee Location": location,
+                        "Attendee LinkedIn/Company URL": linkedin_url
+                    }
+                    print("Profile scraped:", profile)
+                    appendProduct('attendee_profiles.csv', profile)
+                    profiles.append(profile)
+                else:
+                    print(f"Profile {id}: Request successful but 'success' field is False.")
+            except Exception as e:
+                print(f"Profile {id}: JSON parse error - {e}")
+        else:
+            print(f"Profile {id}: Request failed ")
+        time.sleep(2)
+    return profiles  
+
+if __name__ == "__main__":
+    ids=[]
+    with open("search_ids.txt") as file:
+        for line in file:
+            ids.append(line.strip())
+    attended_profiles = scrape_ids(ids)
+    print("Profiles scraped:", len(attended_profiles))
+    
