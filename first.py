@@ -1,6 +1,11 @@
 import requests
 import time
+from dotenv import load_dotenv
+import os
 
+load_dotenv()
+
+X_AUTHORIZATION = os.getenv("X_AUTHORIZATION")
 # Base URL
 BASE_URL = "https://api-prod.grip.events/1/container/7888/search/extension/93167"
 
@@ -24,7 +29,7 @@ HEADERS = {
     "sec-fetch-site": "cross-site",
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
     "version": "37.0.0",
-    "x-authorization": "98fff295-8151-4133-b834-68d18d5583dd",
+    "x-authorization": X_AUTHORIZATION,
     "x-grip-version": "Web/37.0.0"
 }
 
