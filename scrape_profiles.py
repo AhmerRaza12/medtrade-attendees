@@ -52,15 +52,29 @@ def appendProduct(file_path2, data):
 
     return True
 
-def extract_linkedin_url(rtm_string):
+def extract_rtm_fields(rtm_str):
+    """Extract LinkedIn URL, Job Function, Facility Type, and Product Interests from rtm JSON."""
     try:
-        rtm_data = json.loads(rtm_string)  # Parse the JSON string inside rtm
-        for key, value in rtm_data.items():
-            if value.get("label") == "Company URLs":  # Check if label is "Company URLs"
-                return value.get("sentence", "")  # Return the sentence (which contains the URL)
+        rtm = json.loads(rtm_str)  # Parse rtm JSON string
+        linkedin_url = ""
+        job_function = ""
+        facility_type = ""
+        product_interests = ""
+
+        for key, value in rtm.items():
+            if "website" in key and "linkedin" in value.get("sentence", "").lower():
+                linkedin_url = value.get("sentence", "")
+            elif "job_function" in key:
+                job_function = value.get("sentence", "")
+            elif "facility_type" in key:
+                facility_type = value.get("sentence", "")
+            elif "product_interest" in key:
+                product_interests = value.get("sentence", "")
+
+        return linkedin_url, job_function, facility_type, product_interests
     except json.JSONDecodeError:
         print("Error decoding rtm JSON")
-    return ""
+        return "", "", "", ""
 
 
 
@@ -84,7 +98,7 @@ def scrape_ids(ids):
                     location=attendee_data.get("location", " ")
                     summary=attendee_data.get("summary", " ")
                     rtm=attendee_data.get("rtm", "{}")
-                    linkedin_url=extract_linkedin_url(rtm)
+                    linkedin_url, job_function, facility_type, product_interests = extract_rtm_fields(rtm)
                     profile = {
                         "Attendee Id": id,
                         "Attendee Name": name,
@@ -92,10 +106,13 @@ def scrape_ids(ids):
                         "Attendee Company Name": company_name,
                         "Attendee Summary": summary,
                         "Attendee Location": location,
-                        "Attendee LinkedIn/Company URL": linkedin_url
+                        "Attendee LinkedIn/Company URL": linkedin_url,
+                        "Attendee Job Function": job_function,
+                        "Attendee Facility Type": facility_type,
+                        "Attendee Product Interests": product_interests
                     }
                     print("Profile scraped:", profile)
-                    appendProduct('attendee_profiles.csv', profile)
+                    appendProduct('attendee_profiles_second.csv', profile)
                     profiles.append(profile)
                 else:
                     print(f"Profile {id}: Request successful but 'success' field is False.")
