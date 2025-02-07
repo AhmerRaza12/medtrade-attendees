@@ -4,11 +4,17 @@ import os
 import pandas as pd
 import json
 from dotenv import load_dotenv
-
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 load_dotenv()
 
 X_AUTHORIZATION = os.getenv("X_AUTHORIZATION")
 BASE_URL="https://api-prod.grip.events/1/container/7888/thing"
+
+SHEETS_ID=os.getenv("SHEETS_ID")
 
 HEADERS = {
     "accept": "application/json",
@@ -31,6 +37,58 @@ HEADERS = {
     "x-authorization": X_AUTHORIZATION,
     "x-grip-version": "Web/37.0.0"
 }
+
+
+def get_google_sheets_service():
+    SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+    creds = None
+
+    if os.path.exists("token.json"):
+        creds = Credentials.from_authorized_user_file("token.json")
+
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                "credentials.json", SCOPES
+            )
+            creds = flow.run_local_server(port=8080)
+        
+        with open("token.json", "w") as token:
+            token.write(creds.to_json())
+
+    return build("sheets", "v4", credentials=creds)
+
+
+def append_to_google_sheet(sheet_id, profiles):
+    """
+    Appends multiple profiles (rows) to a Google Sheet in a single API call.
+
+    :param sheet_id: The ID of the Google Sheet.
+    :param profiles: A list of dictionaries, where each dictionary represents a profile (row).
+    """
+    service = get_google_sheets_service()
+    sheet = service.spreadsheets()
+
+    values = [list(profile.values()) for profile in profiles]
+    body = {"values": values}
+
+    try:
+        result = (
+            sheet.values()
+            .append(
+                spreadsheetId=sheet_id,
+                range="7 Feb 2025!A1",  
+                valueInputOption="RAW",
+                body=body,
+            )
+            .execute()
+        )
+        print(f"{len(profiles)} profiles appended to Google Sheet: {result}")
+    except HttpError as e:
+        print(f"An error occurred while appending data to Google Sheet: {e}")
+
 
 def appendProduct(file_path2, data):
     temp_file = 'temp_file.csv'
@@ -59,14 +117,13 @@ def appendProduct(file_path2, data):
 def extract_rtm_fields(rtm_str):
     """Extract LinkedIn URL, Job Function, Facility Type, and Product Interests from rtm JSON."""
     try:
-        rtm = json.loads(rtm_str)  # Parse rtm JSON string
+        rtm = json.loads(rtm_str)  
         linkedin_url = ""
         job_function = ""
         facility_type = ""
         product_interests = ""
-
         for key, value in rtm.items():
-            if "website" in key and "linkedin" in value.get("sentence", "").lower():
+            if "website" in key:
                 linkedin_url = value.get("sentence", "")
             elif "job_function" in key:
                 job_function = value.get("sentence", "")
@@ -96,7 +153,8 @@ def scrape_ids(ids):
                 data = response.json()
                 if data.get("success"):
                     attendee_data = data.get("data", {})
-                    name=attendee_data.get("name", " ")
+                    first_name=attendee_data.get("first_name", " ")
+                    last_name=attendee_data.get("last_name", " ")
                     job_title=attendee_data.get("job_title", " ")
                     company_name=attendee_data.get("company_name", " ")
                     location=attendee_data.get("location", " ")
@@ -105,7 +163,8 @@ def scrape_ids(ids):
                     linkedin_url, job_function, facility_type, product_interests = extract_rtm_fields(rtm)
                     profile = {
                         "Attendee Id": id,
-                        "Attendee Name": name,
+                        "Attendee First Name": first_name,
+                        "Attendee Last Name": last_name,
                         "Attendee Job Title": job_title,
                         "Attendee Company Name": company_name,
                         "Attendee Summary": summary,
@@ -116,7 +175,8 @@ def scrape_ids(ids):
                         "Attendee Product Interests": product_interests
                     }
                     print("Profile scraped:", profile)
-                    appendProduct('attendee_profiles_second.csv', profile)
+                    # appendProduct('attendee_profiles_second.csv', profile)
+                    # append_to_google_sheet(SHEETS_ID, profile)
                     profiles.append(profile)
                 else:
                     print(f"Profile {id}: Request successful but 'success' field is False.")
@@ -128,10 +188,17 @@ def scrape_ids(ids):
     return profiles  
 
 if __name__ == "__main__":
-    ids=[]
+    ids,second_ids,formatted_ids=[],[],[]
     with open("search_ids.txt") as file:
         for line in file:
             ids.append(line.strip())
-    attended_profiles = scrape_ids(ids)
+    with open("search_ids_second.txt") as file:
+        for line in file:
+            second_ids.append(line.strip())
+    for id in second_ids:
+        if id not in ids:
+            formatted_ids.append(id)
+    attended_profiles = scrape_ids(formatted_ids)
+    append_to_google_sheet(SHEETS_ID, attended_profiles)
     print("Profiles scraped:", len(attended_profiles))
     

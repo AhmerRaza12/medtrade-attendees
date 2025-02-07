@@ -1,3 +1,7 @@
 # ignore all excel files
 *.xlsx
 *.csv
+.env
+*.json
+.env
+*.txt

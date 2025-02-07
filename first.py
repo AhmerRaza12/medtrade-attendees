@@ -34,12 +34,12 @@ HEADERS = {
 }
 
 # Output file
-OUTPUT_FILE = "search_ids.txt"
+OUTPUT_FILE = "search_ids_second.txt"
 
 
 def scrape_ids():
     with open(OUTPUT_FILE, "w") as file:
-        for page in range(1, 87):  
+        for page in range(1, 93):  
             url = f"{BASE_URL}?order=asc&page={page}&sort=name"
             response = requests.get(url, headers=HEADERS)
 
